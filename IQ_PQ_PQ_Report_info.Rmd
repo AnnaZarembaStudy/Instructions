@@ -1,0 +1,75 @@
+---
+title: "IQ Report"
+output:
+  word_document:
+    reference_docx: template.docx
+---
+
+- [ ] Write the press release
+- [ ] Update the website
+- [ ] Contact the media
+
+## Table of Contents
+1. [Prerequisites](#prerequisites)
+2. [Step 1: First Task](#step-1-first-task)
+3. [Step 2: Next Task](#step-2-next-task)
+4. [Conclusion](#conclusion)
+
+---
+
+## Prerequisites
+List any tools, software, or knowledge the user needs before starting:
+- Tool/Software 1
+- Tool/Software 2
+- Basic understanding of XYZ
+
+---
+
+## Step 1: First Task
+Provide a detailed explanation of the first step. Use bullet points, code blocks, or images as needed.
+
+### Example
+1.	Minimum Hardware Requirements:
+Reqs are in a sep file?
+Indiv files for all steps
+Processor (CPU):
+- At least an Intel Core i3 or equivalent AMD processor.
+- A higher-end processor (Intel Core i5 or i7) is recommended for larger datasets or more complex computations.
+RAM:
+- Minimum of 8 GB of RAM.
+- 16 GB or more is recommended for handling larger datasets or running multiple applications simultaneously.
+Storage:
+- At least 256 GB of SSD storage for faster data access.
+- HDD can work, but SSD is preferred for performance.
+Graphics:
+- Integrated graphics are usually sufficient for standard statistical analysis.
+- A dedicated GPU may be beneficial if you plan to use R for machine learning or graphical tasks.
+Display:
+- A resolution of 1920x1080 (Full HD) is recommended for better visibility of data and plots.
+Software Requirements:
+Operating System:
+- R is available for Windows, macOS, and Linux. Ensure your OS is up to date.
+R Installation:
+- Download the latest version of R from the Comprehensive R Archive Network (CRAN).
+RStudio (Optional):
+- RStudio is a popular IDE for R and can enhance productivity. Install the latest version for better features and user experience.
+2.	Install from a verified source for your operational system
+	
+Verify hardware and software requirements (CPU, RAM, storage, etc.).
+	
+
+Install R-Studio and any required statistical libraries (R packages).
+	☐
+
+Check system compatibility with operating systems (Windows).
+	☐
+
+Document the system configuration, installation steps, and software versions.
+	☐
+
+Verify successful installation by launching the software and ensuring access to necessary features (e.g., data import/export, statistical libraries).
+	☐
+
+
+Installation Checklist, Configuration Details, Version Control
+

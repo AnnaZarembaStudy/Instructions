@@ -1,0 +1,222 @@
+---
+title: "Common plots"
+output:
+  word_document:
+    reference_docx: template.docx
+---
+
+```{r libraries, include=FALSE}
+library(ggplot2)
+library(tidyr)
+library(survival)
+library(survminer)
+library(patchwork)
+library(extrafont)
+library(showtext)
+library(wrappedtools)
+```
+
+```{r constants, include=FALSE}
+colors <- c("#0072B2", "#CC79A7", "#F0E442")
+
+theme_pharmaxi <- function() {
+  theme(
+    plot.margin       = unit(c(1, 1, 1, 1), "cm"), # top, right, bottom, left
+    panel.background  = element_blank(),
+    
+    # Title and axis styles
+    plot.title        = element_text(size = 12,
+                                     family = "serif",
+                                     face = "bold",
+                                     hjust = 0.5,
+                                     margin = margin(b = 15)
+    ),
+    axis.title        = element_text(family = "serif",
+                                     size = 13,
+                                     color = "black",
+                                     face = "bold"),
+    axis.title.x      = element_text(vjust = -2),
+    axis.title.y      = element_text(margin = margin(r = 10), vjust = 3),
+    
+    # Axis text styling
+    axis.text         = element_text(size = 11,
+                                     family = "serif",
+                                     color = "black",
+                                     margin = margin(t = 10)
+    ),
+    axis.text.x       = ggtext::element_markdown(margin = margin(t = 10)),
+    axis.ticks.x      = element_blank(),
+    axis.text.y       = ggtext::element_markdown(size = 10),
+    axis.ticks.length = unit(3, "mm"),
+    axis.line         = element_line(color = "black", size = 1), 
+    
+    #strip.text        = element_text(family = "serif", size = 10),
+    
+    # Legend settings
+    legend.direction  = "vertical",
+    #legend.position   = c(0.5, 0.9),
+    legend.position   = "right",
+    legend.box.margin = margin(10,10,10,10), # push legend down
+    #legend.background = element_rect(color = "black", size = 1),
+    legend.text       = element_text(family = "serif", size = 10),
+    legend.title      = element_text(family = "serif", size = 10),
+    legend.margin     = margin(t = 5, l = 5, r = 5, b = 5),
+    legend.key        = element_rect(color = NA, fill = NA),
+    
+    # Aspect ratio for the plot
+    aspect.ratio      = 9 / 16
+  ) 
+}
+
+font_add("Times New Roman", regular = "C:/Windows/Fonts/times.ttf")  # Update the path if needed
+  showtext_auto()
+  
+```
+
+
+```{r long_data1, include=FALSE, warning=FALSE}
+set.seed(123)
+data1 <- data.frame(
+  subject = rep(paste0("Subject ", 1:10), each = 3), # Repeat each subject for 3 days
+  day = rep(c("Day 1", "Day 2", "Day 3"), times = 10), # Assign Day 1, Day 2, Day 3
+  active = sample(10:20, 30, replace = TRUE),          # Random values for active arm
+  placebo = sample(1:10, 30, replace = TRUE)           # Random values for placebo arm
+)
+
+long_data <- data1 %>%
+  pivot_longer(cols = c(active, placebo), 
+               names_to = "arm", 
+               values_to = "value")
+
+```
+
+```{r barplot, fig.height=4, fig.width=6, echo=FALSE, warning=FALSE}
+# Barplot of mean values by arm
+ggplot(long_data, aes(x = arm, y = value, fill = arm)) +
+  scale_fill_manual(values = colors) +
+  stat_summary(fun = "mean", geom = "bar", position = "dodge", color = "black") +
+  labs(title = "Mean Values by Arm", x = "Arm", y = "Mean Value") +
+  theme_pharmaxi()
+```
+
+```{r boxplot, fig.height=4, fig.width=6, echo=FALSE, warning=FALSE}
+# Boxplot of values by arm
+ggplot(long_data, aes(x = arm, y = value, fill = arm)) +
+  scale_fill_manual(values = colors) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Values by Arm", x = "Arm", y = "Value") +
+  theme_pharmaxi()
+```
+
+```{r lineplot, fig.height=4, fig.width=6, echo=FALSE, warning=FALSE}
+ggplot(long_data, aes(x = day, y = value, group = interaction(subject, arm), color = arm)) +
+  scale_color_manual(values = colors) +
+  geom_line(aes(linetype = arm)) +
+  geom_point(size = 3) +
+  labs(title = "Line Plot of Values by Subject Across Days", x = "Day", y = "Value") +
+  theme_pharmaxi()
+```
+
+```{r heatmap, fig.height=4, fig.width=6, echo=FALSE, warning=FALSE}
+ggplot(long_data, aes(x = day, y = subject, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  #scale_fill_gradient(low = colors[1], high = colors[2]) +
+  labs(title = "Heatmap of Values by Subject and Day", x = "Day", y = "Subject") +
+  theme_pharmaxi()
+```
+
+```{r k_m_data, include=FALSE}
+# Set seed for reproducibility
+set.seed(123)
+
+# Create a sample dataframe
+km_data <- data.frame(
+  serial_time = c(1, 2, 3, 4, 5, 1, 2, 3, 4, 5),  # Serial time
+  status = c(1, 0, 1, 0, 1, 0, 1, 1, 0, 1),      # Status (1 = event, 0 = censored)
+  arm = rep(c("Active", "Placebo"), each = 5) # Study group
+)
+```
+
+```{r kaplan_meier, fig.height=4, fig.width=6, echo=FALSE, warning=FALSE}
+# Create a survival object
+surv_obj <- Surv(time = km_data$serial_time, event = km_data$status)
+
+# Fit survival curves by study group
+fit <- survfit(surv_obj ~ arm, data = km_data)
+
+# Plot Kaplan-Meier curve by study group
+surv_plot <- ggsurvplot(
+  fit,
+  data = km_data,
+  risk.table = FALSE,            # Add risk table
+  pval = FALSE,                  # Add p-value for log-rank test
+  conf.int = TRUE,              # Add confidence intervals
+  legend.labs = c("Active", "Placebo"), # Change legend labels
+  xlab = "Time to Event",       # X-axis label
+  ylab = "Survival Probability", # Y-axis label
+  title = "Kaplan-Meier Survival Curve by Study Group", # Title
+  palette = colors,   # Color for groups
+  legend.title = "Study Group"  # Title of legend
+) 
+surv_plot$plot <- surv_plot$plot + 
+    theme(
+      axis.title.x = element_text(#family = "Times New Roman",
+                                  size = 14,
+                                  face = "bold",
+                                  margin = margin(t = 10)),
+      axis.title.y = element_text(#family = "Times New Roman",
+                                  size = 14,
+                                  face = "bold",
+                                  margin = margin(r = 8),
+                                  vjust = 3)
+    )
+surv_plot$plot <- surv_plot$plot +
+        theme(text = element_text(family = "Times New Roman"))
+surv_plot
+
+```
+
+```{r regression_plot, echo=FALSE, fig.height=6, fig.width=8, warning=FALSE, message=FALSE}
+# Create sample data
+set.seed(123)
+data <- data.frame(
+  predictor = rnorm(100, mean = 5, sd = 2),
+  response = rnorm(100, mean = 10, sd = 3)
+)
+
+# Generate regression plot with specified color
+ggplot(data = data, aes(x = predictor, y = response)) +
+  geom_point(color = "#CC79A7") + # Points in dark green
+  geom_smooth(method = "lm", color = "#0072B2", se = FALSE) + # Regression line in blue
+  labs(
+    title = "Linear Regression",
+    x = "Predictor",
+    y = "Response"
+  ) + 
+  theme_pharmaxi()
+
+```
+
+```{r pk_data, echo=FALSE, fig.height=6, fig.width=8, warning=FALSE, message=FALSE}
+# Create sample pharmacokinetics data
+set.seed(123)
+pharmacokinetics_data <- data.frame(
+  time = c(0, 4, 8, 12, 16, 24), # Only 6 time points
+  concentration = c(10, 7.5, 5.0, 3.0, 1.5, 0.5) + rnorm(6, mean = 0, sd = 0.1)
+)
+
+
+# Generate pharmacokinetic plot with specified colors
+ggplot(data = pharmacokinetics_data, aes(x = time, y = concentration)) +
+  geom_line(color = "#CC79A7") + # Line in red
+  geom_point(color = "#0072B2") + # Points in dark blue
+  geom_smooth(method = "lm", color = "#F0E442", se = FALSE) +
+  labs(
+    title = "Pharmacokinetic Analysis",
+    x = "Time (hours)",
+    y = "Concentration (mg/L)"
+  ) + 
+  theme_pharmaxi()
+
+```

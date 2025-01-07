@@ -1,0 +1,71 @@
+---
+title: "Renv Instruction"
+output:
+  word_document:
+    reference_docx: template.docx
+---
+
+## What is renv?
+
+Package that helps create reproducible environments for your R projects.
+
+More info: [Introduction to renv](https://rstudio.github.io/renv/articles/renv.html?_gl=1*1lvqqs5*_ga*MTYzNjAxNDk2MS4xNzIyNTAzNDcx*_ga_2C0WZ1JHG0*MTczNDQzNjAzMi4xMi4wLjE3MzQ0MzYwMzIuMC4wLjA.).
+
+## Workflow with renv
+
+1.  Install renv package:
+
+``` {r install, eval=FALSE, echo=TRUE}
+
+install.packages("renv")
+
+```
+
+2.  Initialize renv:
+
+``` {r init, eval=FALSE, echo=TRUE}
+
+renv::init()
+
+```
+
+Outcome:
+
+-   renv creates a new folder with project-specific library for your packages - renv/library.
+
+-   It generates a renv.lock file, which records the exact versions of all currently installed packages.
+
+-   .Rprofile file is also created to automatically activate renv when the project is loaded.
+
+3.  Install new packages or update existing ones:
+
+```{r packages, eval=FALSE, echo=TRUE}
+
+install.packages("wrappedtools")
+
+```
+
+4.  Snapshot environment to the renv.lock file:
+
+```{r snap, eval=FALSE, echo=TRUE}
+
+renv::snapshot()
+
+```
+
+5.  Restore environment of the project or share the project with a new person:
+
+```{r restore, eval=FALSE, echo=TRUE}
+
+renv::restore()
+
+```
+
+Outcome:
+
+-   renv reads the renv.lock file.
+
+-   It installs the exact versions of the required packages into the project library.
+
+6.  To share with a new person give access to the entire project or a specific script along with renv.lock file. Use renv::restore() to recreate the exact package environment as recorded in the renv.lock file.
+7.  Use renv::status() to check for issues or unused packages.

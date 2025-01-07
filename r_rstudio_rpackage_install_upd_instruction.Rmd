@@ -1,0 +1,94 @@
+---
+title: "R, RStudio, R packages Installation and Updating Instruction"
+output: 
+  word_document:
+    reference_docx: template.docx
+---
+
+## R Installation 
+
+1. On [R CRAN website](https://cran.r-project.org/) in "Download and Install R" section choose an appropriate link for the software, click "install R for the first time".
+
+## RStudio Installation
+
+1. On [RStudio website](https://www.rstudio.com/products/rstudio/download/) click "Installers RStudio" and install RStudio for Windows. For other software and installation options scroll below.
+
+2. Open RStudio.
+
+## R and RStudion Updating
+
+1. Close current R session. 
+
+2. On [R CRAN website](https://cran.r-project.org/) in "Download and Install R" section choose an appropriate link for the software, click "install R for the first time".
+
+3. On [RStudio website](https://www.rstudio.com/products/rstudio/download/) click "Installers RStudio" and install RStudio for Windows. For other software and installation options scroll below.
+
+4. Setup new vwrsion of RStudio.
+
+5. Reopen R Session in RStudio and choose the newest R version in Tools - Global options General - R Session - R version - Change - Apply.
+
+6. Close and reopen RStudio.
+
+7. Check information about session to ensure that the newest R and RStudio versions are installed. 
+
+- Type in the console:
+
+``` {r sessinf, eval=FALSE, echo=TRUE}
+
+utils::sessionInfo()
+
+```
+
+to check location, timezome, locale, base packages, loaded packages.
+
+- Type in the console:
+
+``` {r rvers, eval=FALSE, echo=TRUE}
+
+R.Version()
+
+```
+
+to check R version (full name and release date), OS, platform, and other information.
+
+- Type in the console:
+
+``` {r versinfo, eval=FALSE, echo=TRUE}
+
+rstudioapi::versionInfo()
+
+```
+
+to check RStudio version, build, and other information.
+
+## R packages Installation
+
+1. Install R packages from CRAN repository.
+
+- Go to Packages - Install - Type package name - Install OR
+
+- Type in the console:
+
+``` {r install, eval=FALSE, echo=TRUE}
+
+install.packages("package_name")
+
+```
+
+to install a new package.
+
+2. Load R packages.
+
+- Type in the console:
+
+``` {r load, eval=FALSE, echo=TRUE}
+
+library(package_name)
+
+```
+
+to load a package in the environment.
+
+## R packages Updating
+
+Go to Tools - Check for Package updates - Select all - Install updates.

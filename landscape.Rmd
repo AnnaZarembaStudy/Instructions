@@ -1,0 +1,22 @@
+---
+title: "Officedown"
+author: "Stefan"
+date: "7 3 2020"
+output: officedown::rdocx_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Portrait
+Lorem ipsum
+
+<!---BLOCK_LANDSCAPE_START--->
+
+## Landscape
+Lorem Impsum
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+## Portrait
