@@ -5,8 +5,14 @@ output:
     reference_docx: template.docx
 ---
 
+Colors used in the plots are defined as follows:
+"#0072B2, 
+"#CC79A7",
+"#F0E442"
+
 ```{r libraries, include=FALSE}
 library(ggplot2)
+library(dplyr)
 library(tidyr)
 library(survival)
 library(survminer)
@@ -80,11 +86,12 @@ data1 <- data.frame(
   subject = rep(paste0("Subject ", 1:10), each = 3), # Repeat each subject for 3 days
   day = rep(c("Day 1", "Day 2", "Day 3"), times = 10), # Assign Day 1, Day 2, Day 3
   active = sample(10:20, 30, replace = TRUE),          # Random values for active arm
-  placebo = sample(1:10, 30, replace = TRUE)           # Random values for placebo arm
+  placebo = sample(1:10, 30, replace = TRUE),           # Random values for placebo arm
+  gold = sample(15:25, 30, replace = TRUE)              # Random values for gold standard
 )
 
 long_data <- data1 %>%
-  pivot_longer(cols = c(active, placebo), 
+  pivot_longer(cols = c(active, placebo, gold), 
                names_to = "arm", 
                values_to = "value")
 
@@ -117,14 +124,48 @@ ggplot(long_data, aes(x = day, y = value, group = interaction(subject, arm), col
   theme_pharmaxi()
 ```
 
-```{r heatmap, fig.height=4, fig.width=6, echo=FALSE, warning=FALSE}
-ggplot(long_data, aes(x = day, y = subject, fill = value)) +
+```{r heat_data, include=FALSE}
+heat_plac <- long_data %>%
+  filter(arm == "placebo") %>% 
+  group_by(value) 
+
+heat_active <- long_data %>%
+  filter(arm == "active") %>% 
+  group_by(value)
+
+heat_gold <- long_data %>%
+  filter(arm == "gold") %>% 
+  group_by(value)
+```
+
+
+```{r heatmap_pl, fig.height=4, fig.width=6, echo=FALSE, warning=FALSE}
+ggplot(heat_plac, aes(x = day, y = subject, fill = value)) +
   geom_tile(color = "white") +
-  scale_fill_gradient(low = "white", high = "steelblue") +
+  scale_fill_gradient(low = "white", high = "#0072B2") +
   #scale_fill_gradient(low = colors[1], high = colors[2]) +
   labs(title = "Heatmap of Values by Subject and Day", x = "Day", y = "Subject") +
   theme_pharmaxi()
 ```
+```{r heatmap_ac, fig.height=4, fig.width=6, echo=FALSE, warning=FALSE}
+ggplot(heat_active, aes(x = day, y = subject, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "#CC79A7") +
+  #scale_fill_gradient(low = colors[1], high = colors[2]) +
+  labs(title = "Heatmap of Values by Subject and Day", x = "Day", y = "Subject") +
+  theme_pharmaxi()
+
+```
+
+```{r heatmap_gs, fig.height=4, fig.width=6, echo=FALSE, warning=FALSE}
+ggplot(heat_gold, aes(x = day, y = subject, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "#F0E442") +
+  #scale_fill_gradient(low = colors[1], high = colors[2]) +
+  labs(title = "Heatmap of Values by Subject and Day", x = "Day", y = "Subject") +
+  theme_pharmaxi()
+```
+
 
 ```{r k_m_data, include=FALSE}
 # Set seed for reproducibility
@@ -132,9 +173,9 @@ set.seed(123)
 
 # Create a sample dataframe
 km_data <- data.frame(
-  serial_time = c(1, 2, 3, 4, 5, 1, 2, 3, 4, 5),  # Serial time
-  status = c(1, 0, 1, 0, 1, 0, 1, 1, 0, 1),      # Status (1 = event, 0 = censored)
-  arm = rep(c("Active", "Placebo"), each = 5) # Study group
+  serial_time = c(1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 4),  # Serial time
+  status = c(1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1),      # Status (1 = event, 0 = censored)
+  arm = rep(c("Active", "Placebo", "Gold"), each = 4) # Study group
 )
 ```
 
@@ -152,7 +193,7 @@ surv_plot <- ggsurvplot(
   risk.table = FALSE,            # Add risk table
   pval = FALSE,                  # Add p-value for log-rank test
   conf.int = TRUE,              # Add confidence intervals
-  legend.labs = c("Active", "Placebo"), # Change legend labels
+  legend.labs = c("Active", "Placebo", "Gold"), # Change legend labels
   xlab = "Time to Event",       # X-axis label
   ylab = "Survival Probability", # Y-axis label
   title = "Kaplan-Meier Survival Curve by Study Group", # Title

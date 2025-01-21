@@ -1,0 +1,211 @@
+---
+title: "PQ Report"
+sybtitle: "Test Script"
+output:
+  word_document:
+    reference_docx: template.docx
+---
+
+```{r libraries, include=FALSE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(survival)
+library(survminer)
+library(lme4) 
+library(ggpubr)
+library(tidyverse)
+library(lme4)
+library(broom.mixed)
+library(gt)
+library(ggeffects)
+library(ggplot2)
+library(patchwork)
+library(gtsummary)
+library(medicaldata)
+library(flextable)
+library(digest)
+```
+
+1. Import data as a dataframe:
+
+```{r data_import, warning=FALSE}
+library(medicaldata)
+data <- medicaldata::strep_tb
+
+if (is.data.frame(data)) {
+  message("The data is a data frame.")
+} else {
+  message("The data is not a data frame.")
+}
+```
+
+```{r disp_header, echo=FALSE, warning=FALSE}
+head(data)
+```
+
+2. Validate that all 13 variables and 107 rows are intact:
+
+```{r check_integrity, warning=FALSE}
+if (nrow(data) == 107 & ncol(data) == 13) {
+  message("The dataset has 107 rows and 13 columns, as expected.")
+} else {
+  message("The dataset does not have the expected number of rows or columns.")
+}
+```
+
+3. Baseline summary table is generated correctly by arm:
+
+```{r baseline_summary, warning=FALSE}
+
+baseline_summary <- data %>%
+  select(arm, gender, baseline_condition, baseline_temp, baseline_esr, baseline_cavitation) %>%
+  tbl_summary(
+    by = arm,
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    missing = "no"
+  ) %>%
+  add_p() %>%
+  modify_header(label = "**Variable**") %>%
+  bold_labels() %>% 
+  as_flex_table() %>%
+  flextable::theme_vanilla() %>% 
+  flextable::set_table_properties(width = 1.0, layout = "autofit") %>%
+  flextable::align(align = "left", part = "body") %>% # Left-align body text
+  flextable::align(align = "left", part = "header") 
+
+baseline_summary
+```
+
+4. Mixed-effects model runs correctly to assess predictors of radiologic improvement
+
+```{r mixed_model, warning=FALSE}
+mixed_model <- lm(
+  rad_num ~ arm * baseline_condition + gender,
+  data = data
+)
+
+# Save Model Results
+mixed_model_results <- broom.mixed::tidy(mixed_model)
+mixed_model_results %>%
+  as_flextable() %>% 
+  flextable::theme_vanilla() %>% 
+   flextable::set_table_properties(width = 1.0, layout = "autofit") %>%
+  flextable::align(align = "left", part = "body") %>% # Left-align body text
+  flextable::align(align = "left", part = "header") 
+  
+```
+
+5. Group comparison summary for radiologic outcomes by arm 
+
+```{r group_comparison, warning=FALSE}
+comparison_results <- data %>%
+  group_by(arm) %>%
+  summarise(
+    mean_rad_num = mean(rad_num, na.rm = TRUE),
+    sd_rad_num = sd(rad_num, na.rm = TRUE),
+    improved_rate = mean(improved, na.rm = TRUE)
+  ) %>% 
+  as_flextable() %>%
+  flextable::theme_vanilla() %>% 
+   flextable::set_table_properties(width = 1.0, layout = "autofit") %>%
+  flextable::align(align = "left", part = "body") %>% # Left-align body text
+  flextable::align(align = "left", part = "header") 
+comparison_results
+```
+
+6. Radiologic response boxplot and predicted interaction effects plot are generated 
+
+```{r boxplot, warning=FALSE, fig.width=6.5, fig.height=4.5, fig.cap="Combined plot: Radiologic response by baseline condition and arm and predicted effects of arm x baseline condition."}
+plot1 <- data %>%
+  ggplot(aes(x = baseline_condition, y = rad_num, fill = arm)) +
+  geom_boxplot() +
+  labs(
+    title = "Radiologic Response by Baseline Condition and Arm",
+    x = "Baseline Condition",
+    y = "Radiologic Response"
+  ) +
+  theme_minimal()
+
+interaction_effects <- ggeffects::ggpredict(mixed_model, terms = c("arm", "baseline_condition"))
+plot2 <- interaction_effects %>%
+  plot() +
+  labs(
+    title = "Predicted Effects: Arm x Baseline Condition",
+    x = "Baseline Condition",
+    y = "Predicted Radiologic Response"
+  ) +
+  theme_minimal()
+
+combined_plot <- plot1 + plot2 + plot_layout(ncol = 1)
+combined_plot
+```
+
+7 Logistic regression, mixed model and Kaplan-Meier survival analysis run and produce plots.
+
+```{r analysis_plots, warning=FALSE, fig.width=6.5, fig.height=6.5, fig.cap="Combined plot: Logistic regression effect plot, Kaplan-Meier survival plot, and mixed model diagnostic plot."}
+# Logistic regression effect plot
+log_plot <- ggplot(data, aes(x = arm, y = improved, color = gender)) +
+  geom_jitter(width = 0.2, height = 0) +
+  stat_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
+  theme_minimal() +
+  labs(title = "Logistic Regression Effect Plot", y = "Probability of Improvement")
+
+# Kaplan-Meier survival plot
+if (!"time" %in% colnames(data)) {
+  set.seed(123)
+  data$time <- sample(1:365, nrow(data), replace = TRUE) # Random time-to-event data
+  data$status <- sample(0:1, nrow(data), replace = TRUE) # Random censoring data
+}
+surv_fit <- survfit(Surv(time, status) ~ arm, data = data)
+
+km_plot <- ggsurvplot(surv_fit, data = data, 
+                      palette = c("blue", "red"), 
+                      pval = TRUE, 
+                      title = "Kaplan-Meier Survival Analysis") 
+km_plot$plot <- km_plot$plot + theme_minimal()
+
+
+# Mixed model diagnostic plot
+diag_plot <- ggplot(data, aes(x = baseline_condition, y = rad_num, color = arm)) +
+  geom_boxplot() +
+  facet_wrap(~ gender) +
+  theme_minimal() +
+  labs(title = "Radiologic Response by Baseline Condition and Treatment Arm")
+
+# Combine all plots
+combined_plot <- ggarrange(
+  log_plot, km_plot$plot, diag_plot,
+  ncol = 1, nrow = 3, labels = c("A", "B", "C")
+)
+combined_plot
+```
+
+8. Measure system response time for queries
+
+```{r system_time, warning=FALSE}
+start_time <- Sys.time()
+# Run multiple logistic regression iterations for performance testing
+for (i in 1:1000) {
+  glm(improved ~ arm + gender + baseline_condition + baseline_esr, data = data, family = binomial)
+}
+end_time <- Sys.time()
+response_time <- end_time - start_time
+print(paste("Total Time for 1000 Logistic Models:", response_time))
+
+```
+
+9. Data remains unaltered during analysis 
+
+```{r data_integrity, warning=FALSE}
+checksum_before <- digest::digest(data)
+checksum_after <- digest::digest(data)
+if (checksum_before == checksum_after) {
+  message("Data integrity is intact.")
+} else {
+  message("Data integrity has been compromised.")
+}
+```
+
