@@ -1,141 +1,302 @@
 ---
-title: "PQ Report"
-sybtitle: "Test Script"
 output:
   word_document:
     reference_docx: template.docx
 ---
 
 ```{r libraries, include=FALSE, warning=FALSE, message=FALSE}
-library(dplyr)
-library(ggplot2)
-library(survival)
-library(survminer)
-library(lme4) 
-library(ggpubr)
-library(tidyverse)
-library(lme4)
+library(haven)
+library(sjlabelled)
+library(survival); library(survminer)
+library(lme4); library(lmerTest)
 library(broom.mixed)
-library(gt)
-library(ggeffects)
-library(ggplot2)
+library(gt); library(gtsummary)
 library(patchwork)
-library(gtsummary)
-library(medicaldata)
 library(flextable)
-library(digest)
+library(officer)
+library(tidyverse)
+library(ggeffects); library(ggpubr)
 ```
 
-1. Import data as a dataframe:
+\pagebreak
 
-```{r data_import, warning=FALSE}
-library(medicaldata)
-data <- medicaldata::strep_tb
+1. Import demographic and laboratory data as dataframes:
 
-if (is.data.frame(data)) {
+```{r dm_data_import, warning=FALSE}
+url <- "https://raw.githubusercontent.com/RConsortium/submissions-pilot3-adam-to-fda/main/m5/datasets/rconsortiumpilot3/tabulations/sdtm/"
+
+# Read the DM data from public github
+dm_url  <- glue::glue(url, "dm.xpt")
+dm_data <- haven::read_xpt(readr::read_file_raw(dm_url))
+
+dm_data <- dm_data %>% 
+  dplyr::mutate(COUNTRY = factor(COUNTRY, levels = c("USA", "NOT USA"))) %>%
+  dplyr::arrange(USUBJID)
+
+
+# Read the LB data from public github
+lb_url  <- glue::glue(url, "lb.xpt")
+lb_data <- haven::read_xpt(readr::read_file_raw(lb_url))
+
+lb_data   <- lb_data %>% 
+  arrange(USUBJID, LBSEQ)
+
+rm(url, dm_url, lb_url)
+
+if (is.data.frame(dm_data)) {
   message("The data is a data frame.")
 } else {
   message("The data is not a data frame.")
 }
 ```
 
-```{r disp_header, echo=FALSE, warning=FALSE}
-head(data)
+```{r dm_disp_header, echo=FALSE, warning=FALSE}
+head(dm_data)
 ```
 
-2. Validate that all 13 variables and 107 rows are intact:
-
-```{r check_integrity, warning=FALSE}
-if (nrow(data) == 107 & ncol(data) == 13) {
-  message("The dataset has 107 rows and 13 columns, as expected.")
+```{r lab_data_import, warning=FALSE}
+if (is.data.frame(lb_data)) {
+  message("The data is a data frame.")
 } else {
-  message("The dataset does not have the expected number of rows or columns.")
+  message("The data is not a data frame.")
 }
 ```
 
-3. Baseline summary table is generated correctly by arm:
+```{r lab_disp_header, echo=FALSE, warning=FALSE}
+head(lb_data)
+```
+
+2. Data integrity checks
+
+2.1. Validate that all 25 variables and 306 rows are intact for demographic data:
+
+```{r dm_check_integrity, warning=FALSE}
+if (nrow(dm_data) == 306 & ncol(dm_data) == 25) {
+  message("OK: The dataset has 306 rows and 25 columns, as expected.")
+} else {
+  message("ERROR: The dataset does not have the expected number of rows or columns.")
+}
+```
+
+2.2. Validate that all 23 variables and 59580 rows are intact for laboratory data:
+
+```{r lab_check_integrity, warning=FALSE}
+if (nrow(lb_data) == 59580 & ncol(lb_data) == 23) {
+  message("OK: The dataset has 59580 rows and 23 columns, as expected.")
+} else {
+  message("ERROR: The dataset does not have the expected number of rows or columns.")
+}
+```
+
+2.3. Validate that the join between demographic and laboratory data is successful:
+
+```{r join_data, warning=FALSE}
+# Merge demographic and laboratory data
+data <- lb_data %>% select(-DOMAIN) %>%
+  left_join(dm_data %>% select(-DOMAIN, -SUBJID), by = c("USUBJID", "STUDYID")) %>%
+  dplyr::mutate(ARM = factor(ARM)) %>%
+  dplyr::select(!starts_with("LB"), starts_with("LB"))
+
+# check if join is correct
+if (nrow(data) == nrow(lb_data) & ncol(data) == ncol(dm_data) + ncol(lb_data) - 5) {
+  message("The join was successful.")
+} else {
+  message("The join was unsuccessful.")
+}
+```
+
+3. Data cleaning and summaries
+
+3.1. Data cleaning
+```{r data_cleaning_filtering}
+
+# Define allowed visit levels
+visits <- unique(data$VISIT)
+ordered_visits <- visits[grepl("SCREENING|WEEK", visits)]
+
+# Store original labels before modification
+labels <- lapply(data, attr, "label")
+
+# Data filtering and cleaning
+data_clean <- data %>%
+  select(USUBJID, ARM, VISIT, AGE, SEX, LBORRES, LBTEST) %>%
+  filter(LBTEST == "Albumin", VISIT %in% ordered_visits) %>%
+  mutate(
+    LBORRES = as.numeric(LBORRES),
+    VISIT   = factor(VISIT, levels = unique(c(ordered_visits, VISIT))),
+    ARM     = factor(ARM, levels = unique(ARM))
+  )
+
+# Restore labels
+for (col in names(labels)) {
+    if (!is.null(labels[[col]]) && col %in% names(data_clean)) {
+      attr(data_clean[[col]], "label") <- labels[[col]]
+    }
+  }
+
+```
+
+3.2. Baseline summary table is generated correctly by arm:
 
 ```{r baseline_summary, warning=FALSE}
 
 baseline_summary <- data %>%
-  select(arm, gender, baseline_condition, baseline_temp, baseline_esr, baseline_cavitation) %>%
-  tbl_summary(
-    by = arm,
+  dplyr::distinct(USUBJID, ARM, SEX, RACE, ETHNIC, COUNTRY) %>% 
+  dplyr::mutate(RACE = fct_infreq(RACE),
+         ETHNIC = fct_infreq(ETHNIC)) %>%
+  gtsummary::tbl_summary(
+    by = ARM,
+    include = -USUBJID,
+    digits = list(
+      all_continuous() ~ c(1, 1, 1),
+      all_categorical() ~ c(0,1 )),
     statistic = list(
       all_continuous() ~ "{mean} ({sd})",
       all_categorical() ~ "{n} ({p}%)"
     ),
     missing = "no"
   ) %>%
-  add_p() %>%
-  modify_header(label = "**Variable**") %>%
-  bold_labels() %>% 
-  as_flex_table() %>%
+  gtsummary::add_p(pvalue_fun = label_style_pvalue(digits = 3)) %>%
+  gtsummary::add_overall() %>%
+  gtsummary::modify_header(label = "**Variable**") %>%
+  gtsummary::bold_labels() %>% 
+  gtsummary::as_flex_table() %>%
   flextable::theme_vanilla() %>% 
   flextable::set_table_properties(width = 1.0, layout = "autofit") %>%
-  flextable::align(align = "left", part = "body") %>% # Left-align body text
+  flextable::align(align = "left", part = "body") %>% 
   flextable::align(align = "left", part = "header") 
 
 baseline_summary
 ```
 
-4. Mixed-effects model runs correctly to assess predictors of radiologic improvement
+3.3. Summaries by ARM and VISIT:
 
-```{r mixed_model, warning=FALSE}
-mixed_model <- lm(
-  rad_num ~ arm * baseline_condition + gender,
-  data = data
-)
+```{r summaries_by_ARM_and_VISIT, warning=FALSE}
 
-# Save Model Results
-mixed_model_results <- broom.mixed::tidy(mixed_model)
-mixed_model_results %>%
-  as_flextable() %>% 
-  flextable::theme_vanilla() %>% 
-   flextable::set_table_properties(width = 1.0, layout = "autofit") %>%
-  flextable::align(align = "left", part = "body") %>% # Left-align body text
-  flextable::align(align = "left", part = "header") 
-  
+ALB_summary <- data_clean %>% 
+  dplyr::group_by(ARM, VISIT) %>%
+  dplyr::summarise(n      = n(),
+                   mean   = round(mean(LBORRES, na.rm = TRUE), 2),
+                   sd     = round(sd(LBORRES, na.rm = TRUE), 2),
+                   median = median(LBORRES, na.rm = TRUE),
+                   min    = min(LBORRES, na.rm = TRUE),
+                   max    = max(LBORRES, na.rm = TRUE),
+                   .groups = "drop") %>%
+  flextable::flextable() %>%
+  flextable::theme_booktabs() %>%
+  flextable::autofit()
+
+ALB_summary
 ```
 
-5. Group comparison summary for radiologic outcomes by arm 
+4. Statistical modeling
 
-```{r group_comparison, warning=FALSE}
-comparison_results <- data %>%
-  group_by(arm) %>%
-  summarise(
-    mean_rad_num = mean(rad_num, na.rm = TRUE),
-    sd_rad_num = sd(rad_num, na.rm = TRUE),
-    improved_rate = mean(improved, na.rm = TRUE)
-  ) %>% 
-  as_flextable() %>%
-  flextable::theme_vanilla() %>% 
-   flextable::set_table_properties(width = 1.0, layout = "autofit") %>%
-  flextable::align(align = "left", part = "body") %>% # Left-align body text
-  flextable::align(align = "left", part = "header") 
-comparison_results
+4.1 LM model
+```{r lm_model, warning=FALSE}
+
+# LM model ----
+lm_model <- lm(LBORRES ~ ARM * VISIT + AGE, 
+                data = data_clean)
+
+lm_model_results  <- broom.mixed::tidy(lm_model) %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+lm_numeric_cols <- names(lm_model_results)[sapply(lm_model_results, is.numeric)]
+
+lm_model_table <- lm_model_results %>%
+  flextable() %>%
+  colformat_num(j = lm_numeric_cols, digits = 3) %>%  # Ensure 3-digit precision
+  theme_booktabs() %>%  # Optional: Clean table style
+  autofit()  # Adjust column widths
+lm_model_table
 ```
 
-6. Radiologic response boxplot and predicted interaction effects plot are generated 
+4.2 LMM model
 
-```{r boxplot, warning=FALSE, fig.width=6.5, fig.height=4.5, fig.cap="Combined plot: Radiologic response by baseline condition and arm and predicted effects of arm x baseline condition."}
-plot1 <- data %>%
-  ggplot(aes(x = baseline_condition, y = rad_num, fill = arm)) +
+```{r llm_model, warning=FALSE}
+
+# LMM model ----
+# fixed effects: ARM, VISIT, AGE
+# random effect: USUBJID
+lmm_model <- lmer(LBORRES ~ ARM * VISIT + AGE + (1 | USUBJID), 
+              data = data_clean)
+
+lmm_model_results  <- broom.mixed::tidy(lmm_model) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 1))) %>% 
+  select(-group) %>% 
+  filter(term %in% c("VISITWEEK 2", "VISITWEEK 4", "	VISITWEEK 6", "VISITWEEK 8", "VISITWEEK 12", "VISITWEEK 16", "VISITWEEK 20", "VISITWEEK 24", "VISITWEEK 26", "AGE"))
+
+lmm_numeric_cols <- names(lmm_model_results)[sapply(lmm_model_results, is.numeric)]
+
+lmm_model_table <- lmm_model_results %>%
+  flextable() %>%
+  colformat_num(j = lmm_numeric_cols, digits = 1) %>%  # Ensure 3-digit precision
+  theme_booktabs() %>%  # Optional: Clean table style
+  autofit()  # Adjust column widths
+lmm_model_table
+```
+
+4.3. LMM model with nesting and map function
+
+```{r}
+data_perf <- data %>%
+  select(USUBJID, ARM, VISIT, AGE, LBORRES, LBTEST) %>%
+  filter(VISIT %in% ordered_visits) %>%
+  mutate(
+    LBORRES = as.numeric(LBORRES),
+    VISIT   = factor(VISIT, levels = unique(c(ordered_visits, VISIT))),
+    ARM     = factor(ARM, levels = unique(ARM))
+  ) %>%
+  filter(!is.na(LBORRES))
+ 
+tests <- unique(data_perf$LBTEST)[1:5]
+ 
+data_perf_filtered <- data_perf %>% filter(LBTEST %in% tests)
+ 
+# Analysis with nesting and map function (replacement for for loop)
+data_analysis <- data_perf_filtered %>%
+  group_by(LBTEST) %>%
+  nest() %>%
+  mutate(
+    model        = map(.x = data, ~ lmer(LBORRES ~ ARM * VISIT + AGE + (1 | USUBJID), data = .)),  # Fit the model once
+    test_results = map(model, tidy),  # Extract tidy results
+    tables       = map(model, ~ tbl_regression(., exponentiate = FALSE) # Generate regression table
+                      )
+    )
+# unnest the 'test_results'
+test_results <- data_analysis %>%
+  select(LBTEST, test_results) %>%
+  unnest(test_results)
+test_results
+ 
+```
+
+
+
+5. Laboratory results by ARM and VISIT and predicted effects of ARM
+
+```{r boxplot, warning=FALSE, fig.width=6.5, fig.height=4.5, fig.cap="Combined plot of laboratory results by arm and visit and predicted effects of arm on laboratory results."}
+
+plot1 <- data_clean %>%
+  filter(VISIT %in% c("SCREENING 1", "WEEK 12", "WEEK 26")) %>% 
+  ggplot(aes(x = VISIT, y = LBORRES, fill = ARM)) +
   geom_boxplot() +
   labs(
-    title = "Radiologic Response by Baseline Condition and Arm",
-    x = "Baseline Condition",
-    y = "Radiologic Response"
-  ) +
-  theme_minimal()
+    title = "Laboratory Results by Arm and Visit",
+    x = "Visit",
+    y = "Laboratory Results"
+    ) +
+  theme_minimal() +
+  coord_cartesian()
 
-interaction_effects <- ggeffects::ggpredict(mixed_model, terms = c("arm", "baseline_condition"))
+interaction_effects <- ggeffects::ggpredict(lmm_model, terms = c("ARM"))
+
 plot2 <- interaction_effects %>%
   plot() +
   labs(
-    title = "Predicted Effects: Arm x Baseline Condition",
-    x = "Baseline Condition",
-    y = "Predicted Radiologic Response"
+    title = "Predicted Effects: Arm x Laboratory Results",
+    x = "Arm",
+    y = "Laboratory Results"
   ) +
   theme_minimal()
 
@@ -143,69 +304,46 @@ combined_plot <- plot1 + plot2 + plot_layout(ncol = 1)
 combined_plot
 ```
 
-7 Logistic regression, mixed model and Kaplan-Meier survival analysis run and produce plots.
 
-```{r analysis_plots, warning=FALSE, fig.width=6.5, fig.height=6.5, fig.cap="Combined plot: Logistic regression effect plot, Kaplan-Meier survival plot, and mixed model diagnostic plot."}
-# Logistic regression effect plot
-log_plot <- ggplot(data, aes(x = arm, y = improved, color = gender)) +
-  geom_jitter(width = 0.2, height = 0) +
-  stat_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
-  theme_minimal() +
-  labs(title = "Logistic Regression Effect Plot", y = "Probability of Improvement")
+6. Measure system response time for queries:
 
-# Kaplan-Meier survival plot
-if (!"time" %in% colnames(data)) {
-  set.seed(123)
-  data$time <- sample(1:365, nrow(data), replace = TRUE) # Random time-to-event data
-  data$status <- sample(0:1, nrow(data), replace = TRUE) # Random censoring data
-}
-surv_fit <- survfit(Surv(time, status) ~ arm, data = data)
+```{r performance, warning=FALSE}
 
-km_plot <- ggsurvplot(surv_fit, data = data, 
-                      palette = c("blue", "red"), 
-                      pval = TRUE, 
-                      title = "Kaplan-Meier Survival Analysis") 
-km_plot$plot <- km_plot$plot + theme_minimal()
+data_perf <- data %>%
+  select(USUBJID, ARM, VISIT, AGE, LBORRES, LBTEST) %>%
+  filter(VISIT %in% ordered_visits) %>%
+  mutate(
+    LBORRES = as.numeric(LBORRES),
+    VISIT   = factor(VISIT, levels = unique(c(ordered_visits, VISIT))),
+    ARM     = factor(ARM, levels = unique(ARM))
+  ) %>%
+  filter(!is.na(LBORRES))
 
+tests <- unique(data_perf$LBTEST)[1:30]
 
-# Mixed model diagnostic plot
-diag_plot <- ggplot(data, aes(x = baseline_condition, y = rad_num, color = arm)) +
-  geom_boxplot() +
-  facet_wrap(~ gender) +
-  theme_minimal() +
-  labs(title = "Radiologic Response by Baseline Condition and Treatment Arm")
-
-# Combine all plots
-combined_plot <- ggarrange(
-  log_plot, km_plot$plot, diag_plot,
-  ncol = 1, nrow = 3, labels = c("A", "B", "C")
-)
-combined_plot
-```
-
-8. Measure system response time for queries
-
-```{r system_time, warning=FALSE}
 start_time <- Sys.time()
-# Run multiple logistic regression iterations for performance testing
-for (i in 1:1000) {
-  glm(improved ~ arm + gender + baseline_condition + baseline_esr, data = data, family = binomial)
-}
+
+data_perf_filtered <- data_perf %>% filter(LBTEST %in% tests)
+
+# Analysis with nesting and map function (replacement for for loop)
+data_analysis <- data_perf_filtered %>%
+  group_by(LBTEST) %>%
+  nest() %>%
+  mutate(test_results = map(.x=data, ~ lmer(LBORRES ~ ARM * VISIT + AGE + (1 | USUBJID),
+                                            data = .) %>% tidy()
+                            )
+         ) %>%
+  unnest(test_results) %>%
+  select(-data)
+
+
+for (i in tests) {
+  lmer(LBORRES ~ ARM * VISIT + AGE + (1 | USUBJID),
+     data = data_perf %>% filter(LBTEST == i)) %>% na.omit()
+  #print(i)
+  }
 end_time <- Sys.time()
 response_time <- end_time - start_time
-print(paste("Total Time for 1000 Logistic Models:", response_time))
-
-```
-
-9. Data remains unaltered during analysis 
-
-```{r data_integrity, warning=FALSE}
-checksum_before <- digest::digest(data)
-checksum_after <- digest::digest(data)
-if (checksum_before == checksum_after) {
-  message("Data integrity is intact.")
-} else {
-  message("Data integrity has been compromised.")
-}
+print(paste("Total Time:", response_time))
 ```
 
