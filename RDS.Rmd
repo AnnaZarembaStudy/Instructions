@@ -1,0 +1,27 @@
+---
+title: "RDS"
+output: 
+  bookdown::word_document2:
+    number_sections: true
+    keep_md: true
+    reference_docx: template.docx
+---
+
+```{r table, echo=FALSE}
+library(datasets)
+library(flextable)
+library(tidyverse)
+
+mtcars <- head(mtcars) %>% 
+  as_flextable() %>% 
+  # make autofut
+  flextable::set_table_properties(width = .5, layout = "autofit")
+
+saveRDS(mtcars, "mtcars.rds")
+```
+
+```{r read}
+tbl <- readRDS("mtcars.rds")
+tbl
+```
+

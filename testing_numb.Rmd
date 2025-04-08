@@ -1,0 +1,82 @@
+---
+bookdown::word_document2:
+  base_format: officedown::rdocx_document
+  reference_docx: utils/template.docx
+  keep_md: no
+  mapstyles:
+    Normal: ['First Paragraph', 'Body Text']
+  tables:
+    style: Table
+    layout: autofit
+    width: 1.0
+    topcaption: true
+    tab.lp: 'tab:'
+    caption:
+      style: Caption Table
+      pre: 'Table '
+      sep: ': '
+      tnd: 2
+      tns: '-'
+      fp_text: !expr officer::fp_text_lite(bold = TRUE)
+  plots:
+    style: Normal
+    align: left
+    fig.lp: 'fig:'
+    topcaption: false
+    caption:
+      style: Caption Figure
+      pre: 'Figure '
+      sep: ': '
+      tnd: 2
+      tns: '-'
+      fp_text: !expr officer::fp_text_lite(bold = TRUE)
+    fig.width: 6
+    fig.height: 4
+    fig.align: 'center'
+    dev: 'png'
+    dpi: 300
+  page_size:
+    width: 8.3
+    height: 11.7
+    orient: "portrait"
+  reference_num: false
+
+bookdown::gitbook:
+  config:
+    toc:
+      collapse: subsection
+      scroll_highlight: true
+      before: null
+      after: null
+    toolbar:
+      position: fixed
+    download: ["pdf", "epub", "mobi"] 
+    search:
+      engine: lunr
+      options: null
+    fontsettings:
+      theme: white
+      family: sans
+      size: 2
+    info: true
+---
+
+# HEAD1
+
+## HEAD2
+
+```{r tab, tbl.cap = "Table caption"}
+require(graphics)
+pairs(mtcars, main = "mtcars data", gap = 1/4)
+coplot(mpg ~ disp | as.factor(cyl), data = mtcars,
+       panel = panel.smooth, rows = 1)
+## possibly more meaningful, e.g., for summary() or bivariate plots:
+mtcars2 <- within(mtcars, {
+   vs <- factor(vs, labels = c("V", "S"))
+   am <- factor(am, labels = c("automatic", "manual"))
+   cyl  <- ordered(cyl)
+   gear <- ordered(gear)
+   carb <- ordered(carb)
+})
+summary(mtcars2)
+```
